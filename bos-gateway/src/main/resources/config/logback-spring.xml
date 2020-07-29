@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="false" scan="true" scanPeriod="1 seconds">
+
+    <contextName>Bos3</contextName>
+    <property name="LOG_HOME" value="work/logs" />
+    <!--定义参数,后面可以通过${app.name}使用-->
+    <property name="app.name" value="logback_test"/>
+    <!--ConsoleAppender 用于在屏幕上输出日志-->
+    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- encoder 默认配置为PatternLayoutEncoder -->
+        <!--定义控制台输出格式-->
+        <encoder>
+            <pattern>%d [%X{sessionId}] [%thread] %-5level %logger{36} [%file : %line] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="severlog" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${LOG_HOME}/server.log</File>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- rollover daily -->
+            <FileNamePattern>${LOG_HOME}/server.%d{yyyy-MM-dd-HH}.%i.log.gz</FileNamePattern>
+            <!-- keep 30 files worth of history -->
+            <MaxHistory>3</MaxHistory>
+            <!-- 该属性在 1.1.6版本后 才开始支持-->
+            <totalSizeCap>1GB</totalSizeCap>
+            <!-- or whenever the file size reaches 10MB -->
+            <timeBasedFileNamingAndTriggeringPolicy
+                class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>2MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>%d [%X{sessionId}] [%thread] %-5level %logger{36} [%file : %line] - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <appender name ="ASYNC" class= "ch.qos.logback.classic.AsyncAppender">
+        <!-- 不丢失日志.默认的,如果队列的80%已满,则会丢弃TRACT、DEBUG、INFO级别的日志 -->
+        <!-- <discardingThreshold >0</discardingThreshold>-->
+        <!-- 更改默认的队列的深度,该值会影响性能.默认值为256 -->
+        <queueSize>256</queueSize>
+        <!-- 添加附加的appender,最多只能添加一个 -->
+        <includeCallerData>true</includeCallerData>
+        <!-- 提取调用者数据的代价是相当昂贵的。为了提升性能，默认情况下，当event被加入到queue时，event关联的调用者数据不会被提取。默认情况下，只有"cheap"的数据，如线程名。-->
+        <appender-ref ref ="severlog"/>
+    </appender>
+    <appender name="errorlog" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!--定义日志输出的路径-->
+        <!--这里的scheduler.manager.server.home 没有在上面的配置中设定，所以会使用java启动时配置的值-->
+        <!--比如通过 java -Dscheduler.manager.server.home=/path/to XXXX 配置该属性-->
+        <file>${LOG_HOME}/server_error.log</file>
+        <!--定义日志滚动的策略-->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!--定义文件滚动时的文件名的格式-->
+            <fileNamePattern>${LOG_HOME}/server_error.%d{yyyy-MM-dd.HH}.%i.log.gz</fileNamePattern>
+            <!--文件数量-->
+            <maxHistory>3</maxHistory>
+            <!-- 该属性在 1.1.6版本后 才开始支持-->
+            <totalSizeCap>5GB</totalSizeCap>
+            <timeBasedFileNamingAndTriggeringPolicy
+                class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>200MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+
+        <!--定义输出格式-->
+        <encoder>
+            <pattern>%d [%X{mdcRequestIpKey}] [%X{sessionId}] [%thread] [%X{trace_uuid}] %-5level %logger{36} [%file : %line] - %msg%n</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter"><!-- 只打印错误日志 -->
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter"><!-- 只打印警告日志 -->
+            <level>WARN</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+
+    </appender>
+
+    <!--root是默认的logger,默认级别设置为info-->
+    <root level="info">
+        <!--定义了两个appender，日志会通过往这两个appender里面写-->
+        <!--console只在本地打开-->
+        <appender-ref ref="console" />
+        <appender-ref ref="ASYNC" />
+        <!--<appender-ref ref="errorlog" />-->
+        <!--<appender-ref ref="severlog"/> -->
+    </root>
+
+    <logger name="org.springframework" level="WARN" />
+    <logger name="org.apache.shiro" level="WARN" />
+    <logger name="org.hibernate" level="WARN" />
+    <!--对于类路径以 com.example.logback 开头的Logger,输出级别设置为warn,并且只输出到控制台-->
+    <!--这个logger没有指定appender，它会继承root节点中定义的那些appender-->
+    <!--   <logger name="com.example.logback" level="warn"/> -->
+
+    <!--通过 LoggerFactory.getLogger("mytest") 可以获取到这个logger-->
+    <!--由于这个logger自动继承了root的appender，root中已经有stdout的appender了，自己这边又引入了stdout的appender-->
+    <!--如果没有设置 additivity="false" ,就会导致一条日志在控制台输出两次的情况-->
+    <!--additivity表示要不要使用rootLogger配置的appender进行输出-->
+    <!--   <logger name="dev" level="info" additivity="false">
+            <appender-ref ref="console"/>
+            <appender-ref ref="severlog" />
+
+        </logger> -->
+
+    <!--由于设置了 additivity="false" ，所以输出时不会使用rootLogger的appender-->
+    <!--但是这个logger本身又没有配置appender，所以使用这个logger输出日志的话就不会输出到任何地方-->
+    <!-- <logger name="mytest2" level="info" additivity="false"/> -->
+</configuration>
